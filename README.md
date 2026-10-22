@@ -1,4 +1,4 @@
-# mcg-railway-egress-jnb
+# mcg-egress-model
 
 This repository models post-match heavy rail egress and bottleneck dynamics around the Melbourne Cricket Ground (MCG) precinct over a 90-minute departure window. Using a coupled ordinary differential equation (ODE) system across Jolimont ($J$), Richmond ($R$), and Flinders Street ($F$) railway stations, the project investigates how AFL club demographic geographic distributions, walking lags, dynamic gate-throttling feedbacks, and density-dependent boarding friction govern passenger clearance efficiency. It was created as my semester Build Your own Model project for EVSC20007.
 
@@ -198,30 +198,6 @@ def boarding_efficiency(density: float, d_crit: float, gamma_exp: float, eta_min
     return eta_min + (1.0 - eta_min) / (1.0 + (density / d_crit) ** gamma_exp)
 
 ```
-
----
-
-## 6. Next Steps
-
-1. **Full Numerical ODE Integration**
-* Implement the complete coupled system in SciPy using `scipy.integrate.solve_ivp` with adaptive step methods (RK45 or Radau) across $t \in [0, 90]$.
-* Introduce event detection to log queue heights, peak concourse crowding timestamps, and gate-closure intervals.
-
-
-2. **Full Scenario & Fixture Analysis**
-* Simulate match-ups with contrasting demographic weights (e.g., Collingwood vs. Hawthorn vs. Geelong vs. Carlton) under identical overall attendance ($60,000$ to $80,000$).
-* Quantify how asymmetric demand starves high-capacity stations (Richmond) while overwhelming constrained stations (Jolimont).
-
-
-3. **Dynamic Dispatch Optimization**
-* Model responsive train scheduling where $f_{\text{train}, i}(t)$ dynamically adjusts to platform queue backlogs $Q_i(t)$ rather than operating on static dispatch frequencies.
-* Evaluate whether cross-corridor crowd re-routing interventions (e.g., variable signage directing Jolimont-bound passengers toward Richmond or Flinders) improve overall 90-minute egress completion.
-
-
-4. **Precinct Validation & Sensitivity Sweeps**
-* Execute global sensitivity analysis on $\beta_q$, $D_{\text{crit}}$, and $\gamma$ to identify stability thresholds where platform boarding undergoes collapse.
-* Compare simulation results against empirical post-match clearing times and passenger gate counts reported by Metro Trains Melbourne.
-
 ---
 
 ## References
