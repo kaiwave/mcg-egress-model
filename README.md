@@ -1,6 +1,8 @@
 # mcg-egress-model
 
-This repository models post-match heavy rail egress and bottleneck dynamics around the Melbourne Cricket Ground (MCG) precinct over a 90-minute departure window. Using a coupled ordinary differential equation (ODE) system across Jolimont ($J$), Richmond ($R$), and Flinders Street ($F$) railway stations, the project investigates how AFL club demographic geographic distributions, walking lags, dynamic gate-throttling feedbacks, and density-dependent boarding friction govern passenger clearance efficiency. It was created as my semester Build Your own Model project for EVSC20007.
+This repository models post-match heavy rail egress and bottleneck dynamics around the Melbourne Cricket Ground (MCG) precinct over a 90-minute departure window. Using a coupled ordinary differential equation (ODE) system across Jolimont ($J$), Richmond ($R$), and Flinders Street ($F$) railway stations, the project investigates how AFL club demographic geographic distributions, walking lags, dynamic gate-throttling feedbacks, and density-dependent boarding friction govern passenger clearance efficiency. It was originally created as my semester Build Your Own Model project for [EVSC20007 Modelling the Real World](https://handbook.unimelb.edu.au/2026/subjects/evsc20007) at the University of Melbourne, but has been tweaked and updated since.
+
+> **Status:** Complete. The entire report has been written up and published on [cloud.kaiwave.dev](https://cloud.kaiwave.dev/s/qAYrEqGSegxdxYR) - with a card on [kaiwave.dev/projects](https://kaiwave.dev/projects/). 
 
 ---
 
@@ -48,13 +50,13 @@ Total Attendance (N_total)
 Initial Station Crowd M_i(0)
          │
          ▼
-[ Inflow Rate I_i(t) ] ◄── Incoming Arrival Surge f_i(t) (Gamma PDF)
+[ Inflow Rate I_i(t) ] ◄── Arrival Hazard h_i(t) (Gamma)
          │             ◄── Gate Throttle Ψ_i(Q_i) (Balancing Loop)
          ▼
 [ Station Queue Q_i(t) ] ──► Platform Density D_i(t)
          │                          │
          │                          ▼
-         │                   Boarding Efficiency η(D_i) (4PL)
+         │                   Boarding Efficiency η(D_i) (log-logistic)
          │                          │
          ▼                          ▼
 [ Outflow Rate O_i(t) ] ◄── Nominal Base Capacity C_{base,i}
@@ -76,85 +78,59 @@ where $k$ is the shape parameter, $\tau_i$ is the corridor-specific walking trav
 
 Surge entry into the station concourse is regulated by a non-linear gate-throttling balancing feedback loop representing turnstile saturation and fan departure deferrals:
 
-$$I_i(t) = M_i(t) \cdot f_i(t) \cdot \Psi_i(Q_i)$$
+$$I_i(t) = M_i(t) \cdot h_i(t) \cdot \Psi_i(Q_i), \qquad h_i(t) = \frac{f_i(t)}{1 - F_i(t)}$$
 
-$$\Psi_i(Q_i) = \frac{1}{1 + \exp\left(\beta_q (Q_i - Q_{i, \text{gate\_crit}})\right)}$$
+where $F_i$ is the Gamma cumulative distribution and $h_i$ its hazard rate, the arrival rate per fan still outside. With the gate open, this reproduces the unthrottled surge $M_i(0) \cdot f_i(t)$ exactly; when the gate chokes, held-back fans stay in $M_i$ and keep arriving as the queue eases rather than dropping out.
 
-* When $Q_i \ll Q_{i, \text{gate\_crit}}$, concourse entry is unconstrained ($\Psi_i \to 1.0$).
+$$\Psi_i(Q_i) = \frac{1}{1 + \exp\left(\beta_q (Q_i - Q_{i,\text{crit}})\right)}$$
+
+* When $Q_i \ll Q_{i,\text{crit}}$, concourse entry is unconstrained ($\Psi_i \to 1.0$).
 
 
-* When $Q_i = Q_{i, \text{gate\_crit}}$, inflow capacity is halved ($\Psi_i = 0.5$).
+* When $Q_i = Q_{i,\text{crit}}$, inflow capacity is halved ($\Psi_i = 0.5$).
 
 
-* When $Q_i \gg Q_{i, \text{gate\_crit}}$, the gate chokes inflow toward zero ($\Psi_i \to 0$).
+* When $Q_i \gg Q_{i,\text{crit}}$, the gate chokes inflow toward zero ($\Psi_i \to 0$).
 
 
 ### Platform Congestion & Outflow Friction
 
-Live platform crowding density is computed from the physical station footprint $A_i$ as $D_i(t) = Q_i(t) / A_i$ (pax/m²). Boarding efficiency degrades non-linearly according to a Four-Parameter Logistic (4PL) regression model:
+Live platform crowding density is computed from the physical station footprint $A_i$ as $D_i(t) = Q_i(t) / A_i$ (pax/m²). Boarding efficiency degrades non-linearly according to a log-logistic curve (a four-parameter logistic, 4PL, dose-response model with its upper asymptote fixed at 1, leaving three free parameters):
 
 $$\eta(D_i) = \eta_{\min} + \frac{1 - \eta_{\min}}{1 + \left( \frac{D_i(t)}{D_{\text{crit}}} \right)^\gamma}$$
 
-Outflow is constrained by current queue availability and degraded train clearing capacity:
+Outflow is the degraded train clearing capacity, a rate in pax/min:
 
-$$O_i(t) = \min\left(Q_i(t), \, C_{\text{base}, i} \cdot \eta(D_i)\right)$$
+$$O_i(t) = C_{\text{base}, i} \cdot \eta(D_i)$$
 
-where nominal clearance capacity is defined by dispatch rate and train capacity: $C_{\text{base}, i} = f_{\text{train}, i} \cdot Cap_{\text{train}}$.
+where nominal clearance capacity is defined by dispatch rate and train capacity: $C_{\text{base}, i} = f_{\text{train}, i} \cdot Cap_{\text{train}}$. The system is integrated with forward Euler at $\Delta t = 0.1$ min (results change by under 0.05 percentage points at $\Delta t = 0.01$). The queue cannot be over-drained within a step: the discrete scheme caps each step's departures at the passengers actually present.
 
 ---
 
 ## 3. Parameter Specifications
 
-| Parameter / Variable | Symbol | Value / Baseline Range | Units | System Role & Calibration |
-| --- | --- | --- | --- | --- |
-| **Total Rail Attendance** | $N_{\text{total}}$ | $60,000$ | pax | Total crowd departing via train; scaled from match attendance.
-
- |
-| **Corridor Demographics** | $\alpha_i$ | Dynamic ($\sum \alpha_i = 1$) | dimensionless | Splits crowd based on playing team home territory.
-
- |
-| **Mean Walk / Lag Time** | $\tau_i$ | $J: 7.0, \, R: 9.0, \, F: 18.0$ | min | Calibrated to pedestrian walking time through Yarra Park / Birrarung Marr.
-
- |
-| **Gamma Shape Factor** | $k$ | $3.0\text{--}5.0$ | dimensionless | Regulates arrival skewness and unimodal arrival peak.
-
- |
-| **Gamma Scale Factor** | $\theta_i$ | $\tau_i / k$ | min | Dispersion parameter for arrival distribution.
-
- |
-| **Queue Throttle Sensitivity** | $\beta_q$ | $0.001\text{--}0.003$ | $\text{pax}^{-1}$ | Controls logistic gate-choking sensitivity.
-
- |
-| **Concourse Gate Capacity** | $Q_{i,\text{gate\_crit}}$ | $J: 4,000; \, R: 18,000; \, F: 25,000$ | pax | Physical gate throughput and turnstile holding saturation.
-
- |
-| **Platform Surface Area** | $A_i$ | $J: 1,800; \, R: 9,000; \, F: 15,000$ | $\text{m}^2$ | Footprint across platforms (J: 2, R: 10, F: 15 platforms).
-
- |
-| **Critical Boarding Density** | $D_{\text{crit}}$ | $2.0\text{--}2.5$ | $\text{pax/m}^2$ | Boarding dwell-delay inflection point (Fruin LOS E/F).
-
- |
-| **Friction Exponent** | $\gamma$ | $3.5\text{--}4.5$ | dimensionless | Curvature of boarding efficiency breakdown.
-
- |
-| **Minimum Efficiency Floor** | $\eta_{\min}$ | $0.30\text{--}0.40$ | dimensionless | Enforced train departure efficiency threshold.
-
- |
-| **Train Dispatch Rate** | $f_{\text{train}, i}$ | $J: 0.3\text{--}0.5; \, R: 0.8\text{--}1.2; \, F: 0.6\text{--}1.0$ | trains/min | Post-match clearing timetable dispatch frequency.
-
- |
-| **Train Crush Capacity** | $Cap_{\text{train}}$ | $1,000$ | pax/train | Nominal capacity for standard 6-car EMU sets.
-
- |
-| **Nominal Outflow Rate** | $C_{\text{base}, i}$ | $f_{\text{train}, i} \cdot Cap_{\text{train}}$ | pax/min | Baseline clearance rate prior to congestion degradation.
-
- |
+| Parameter / Variable | Symbol | Model Value | Plausible Range | Units | System Role & Calibration |
+| --- | --- | --- | --- | --- | --- |
+| **Total Rail Attendance** | $N_{\text{total}}$ | $60,000$ | $80,000$ for rivalries (unexercised) | pax | Total crowd departing via train; scaled from match attendance. |
+| **Corridor Demographics** | $\alpha_i$ | Per fixture ($\sum \alpha_i = 1$) | – | dimensionless | Splits crowd based on playing team home territory (Section 4). |
+| **Mean Walk / Lag Time** | $\tau_i$ | $J: 7.0; \, R: 9.0; \, F: 18.0$ | – | min | Estimated from maps of walking routes through Yarra Park / Birrarung Marr. |
+| **Gamma Shape Factor** | $k$ | $4.0$ | $3.0\text{--}5.0$ | dimensionless | Regulates arrival skewness and unimodal arrival peak. |
+| **Gamma Scale Factor** | $\theta_i$ | $\tau_i / k$ | – | min | Dispersion parameter for arrival distribution. |
+| **Queue Throttle Sensitivity** | $\beta_q$ | $0.002$ | $0.001\text{--}0.003$ | $\text{pax}^{-1}$ | Controls logistic gate-choking sensitivity. |
+| **Concourse Gate Capacity** | $Q_{i,\text{crit}}$ | $J: 4,000; \, R: 18,000; \, F: 25,000$ | – | pax | Physical gate throughput and turnstile holding saturation. |
+| **Platform Surface Area** | $A_i$ | $J: 1,800; \, R: 9,000; \, F: 15,000$ | – | $\text{m}^2$ | Footprint across platforms (J: 2, R: 10, F: 13 platforms). |
+| **Critical Boarding Density** | $D_{\text{crit}}$ | $2.25$ | $2.0\text{--}2.5$ | $\text{pax/m}^2$ | Boarding dwell-delay inflection point (Fruin LOS E/F). |
+| **Friction Exponent** | $\gamma$ | $4.0$ | $3.5\text{--}4.5$ | dimensionless | Curvature of boarding efficiency breakdown. |
+| **Minimum Efficiency Floor** | $\eta_{\min}$ | $0.35$ | $0.30\text{--}0.40$ | dimensionless | Enforced train departure efficiency threshold. |
+| **Train Dispatch Rate** | $f_{\text{train}, i}$ | $J: 0.4; \, R: 0.8; \, F: 1.0$ | $J: 0.3\text{--}0.5; \, R: 0.8\text{--}1.2; \, F: 0.6\text{--}1.0$ | trains/min | Post-match clearing timetable dispatch frequency. |
+| **Train Crush Capacity** | $Cap_{\text{train}}$ | $1,000$ | – | pax/train | Nominal capacity for standard 6-car EMU sets. |
+| **Nominal Outflow Rate** | $C_{\text{base}, i}$ | $f_{\text{train}, i} \cdot Cap_{\text{train}}$ | – | pax/min | Baseline clearance rate prior to congestion degradation. |
 
 ---
 
 ## 4. Fanbase Corridor Demographics
 
-Attendance assumes 30,000 fans per team (increasing by +10,000 fans per side during major rivalry fixtures). For each team, 18% of supporters are uniformly distributed across the three corridors (6% each), while the remaining 82% follow traditional home heartland demographic lines:
+Attendance assumes 30,000 fans per team (plus 10,000 fans per side during major rivalry fixtures). For each team, 18% of supporters are uniformly distributed across the three corridors (6% each), while the remaining 82% follow traditional home heartland demographic lines:
 
 | Team | Proportion Jolimont ($\alpha_J$) | Proportion Richmond ($\alpha_R$) | Proportion Flinders ($\alpha_F$) | Catchment / Routing Notes |
 | --- | --- | --- | --- | --- |
@@ -169,39 +145,40 @@ Attendance assumes 30,000 fans per team (increasing by +10,000 fans per side dur
 
 ---
 
-## 5. Implementation Architecture
+## 5. Headline Results
 
-The core mechanics verified in Python:
+Across all 28 pairings of the eight parameterised teams, at 60,000 rail-bound fans:
 
-```python
-from math import exp, gamma as gamma_function, isfinite
+* 21 fixtures clear their whole crowd within 90 minutes, taking 33 to 61 minutes to clear 95%; Richmond's share sets how long ($r = 0.85$).
+* Only the seven Collingwood fixtures fail to clear (84% to 95%), with the shortfall queued at or waiting outside Jolimont, the smallest corridor (400 pax/min).
+* Raising Jolimont's dispatch rate from 0.4 to 0.45–0.55 trains/min for Collingwood fixtures alone clears every crowd; widening Jolimont's gates instead makes clearance worse, since the bottleneck is the trains.
 
-def _require_positive(value: float, name: str) -> None:
-    if not isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be a finite positive number")
+The full analysis, figures and limitations are in `main.ipynb` (Discussion section).
 
-def gamma_density(time: float, shape: float, scale: float) -> float:
-    _require_positive(time, "time")
-    _require_positive(shape, "shape")
-    _require_positive(scale, "scale")
-    return (time ** (shape - 1) * exp(-time / scale)) / (scale**shape * gamma_function(shape))
+---
 
-def queue_throttle(queue: float, gate_capacity: float, sensitivity: float) -> float:
-    _require_positive(gate_capacity, "gate_capacity")
-    _require_positive(sensitivity, "sensitivity")
-    if queue < 0:
-        raise ValueError("queue must not be negative")
-    arg = sensitivity * (queue - gate_capacity)
-    return exp(-arg) / (1.0 + exp(-arg)) if arg >= 0 else 1.0 / (1.0 + exp(arg))
+## 6. Repository Layout
 
-def boarding_efficiency(density: float, d_crit: float, gamma_exp: float, eta_min: float) -> float:
-    return eta_min + (1.0 - eta_min) / (1.0 + (density / d_crit) ** gamma_exp)
+* `main.ipynb`: the executed report (Quarto source, outputs included).
+* `model.py`: model parameters, flow functions, the forward Euler simulation, and plotting.
+* `assets/`: the stock-and-flow diagram and the figures exported by `main.ipynb`.
+* `requirements.txt`: Python dependencies.
 
+### Running it
+
+From the repository root:
+
+```bash
+pip install -r requirements.txt
+quarto render main.ipynb
 ```
+
+Rendering uses the stored outputs; add `--execute` to rerun the notebook (which also re-exports the figures to `assets/`). The PDF needs a LaTeX install with `xelatex` (`quarto install tinytex`).
+
 ---
 
 ## References
 
-1. Hohman, F. (2018). *CSE 6730 Modeling and Simulation Project Report*. [FRED HOHMAN CSE 6730](https://fredhohman.com/assets/cse-6730-project-report.pdf)
+1. Fruin, J. (1971). *Pedestrian Planning and Design*. Metropolitan Association of Urban Designers and Environmental Planners.
 
-2. Ritz, C., et al. (2019). *Dose-Response Analysis Using R*. *The R Journal*, 11(2). [RJ-2019-003](https://journal.r-project.org/articles/RJ-2019-003/RJ-2019-003.pdf)
+2. Ritz, C., Baty, F., Streibig, J. C., & Gerhard, D. (2015). *Dose-Response Analysis Using R*. *PLOS ONE*, 10(12), e0146021. [journals.plos.org](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0146021)
