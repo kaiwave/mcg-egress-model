@@ -1,6 +1,8 @@
 # mcg-egress-model
 
-This repository models post-match heavy rail egress and bottleneck dynamics around the Melbourne Cricket Ground (MCG) precinct over a 90-minute departure window. Using a coupled ordinary differential equation (ODE) system across Jolimont ($J$), Richmond ($R$), and Flinders Street ($F$) railway stations, the project investigates how AFL club demographic geographic distributions, walking lags, dynamic gate-throttling feedbacks, and density-dependent boarding friction govern passenger clearance efficiency. It was originally created as my semester Build Your Own Model project for [EVSC20007 Modelling the Real World](https://handbook.unimelb.edu.au/2026/subjects/evsc20007) at the University of Melbourne, but has been updated and modified since.
+This repository models post-match heavy rail egress and bottleneck dynamics around the Melbourne Cricket Ground (MCG) precinct over a 90-minute departure window. Using a coupled ordinary differential equation (ODE) system across Jolimont ($J$), Richmond ($R$), and Flinders Street ($F$) railway stations, the project investigates how AFL club demographic geographic distributions, walking lags, dynamic gate-throttling feedbacks, and density-dependent boarding friction govern passenger clearance efficiency. It was originally created as my semester Build Your Own Model project for [EVSC20007 Modelling the Real World](https://handbook.unimelb.edu.au/2026/subjects/evsc20007) at the University of Melbourne, but has been tweaked and updated since.
+
+> **Status:** Complete. The entire report has been written up and published on [cloud.kaiwave.dev](https://cloud.kaiwave.dev/s/qAYrEqGSegxdxYR) - with a card on [kaiwave.dev/projects](https://kaiwave.dev/projects/). 
 
 ---
 
