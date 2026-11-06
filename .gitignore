@@ -17,3 +17,6 @@ __pycache__/
 .DS_Store
 
 main_files/
+# Quarto render output
+main.pdf
+main.tex
